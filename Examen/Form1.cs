@@ -1,13 +1,16 @@
 
 using System.Net;
 using Examen.Context;
+using Examen.products;
+using Examen.utils;
+using Examen.utils.dto;
 using MaterialSkin.Controls;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using project.roles;
 using project.users;
-using project.utils.dto;
 using static Examen.utils.materialUI;
 namespace Examen
 {
@@ -15,12 +18,21 @@ namespace Examen
     {
         private UserManager<userEntity> userManager;
         private RoleManager<rolEntity> roleManagerSvc;
-        public Form1(UserManager<userEntity> userManagerSvc, RoleManager<rolEntity> roleManager)
+        private IServiceProvider serviceProvider;
+        private localStorage localStorageSvc;
+        public Form1(
+            UserManager<userEntity> userManagerSvc, 
+            RoleManager<rolEntity> roleManager, 
+            IServiceProvider serviceProviderTemp,
+            localStorage local
+            )
         {
             InitializeComponent();
             loadMaterial(this);
             userManager = userManagerSvc;
             roleManagerSvc = roleManager;
+            serviceProvider = serviceProviderTemp;
+            localStorageSvc = local;
         }
 
         private async void Form1_Load(object sender, EventArgs e)
@@ -33,39 +45,44 @@ namespace Examen
 
         }
 
-        private async Task<string> validationsLogin()
+        private async Task<dtoError<userEntity>> validationsLogin()
         {
             string emailWrite = txtEmail.Text;
             string passwordWrite = txtPassword.Text;
+            dtoError<userEntity> dtoError = new dtoError<userEntity>();
             if (string.IsNullOrWhiteSpace(emailWrite))
-                return "El correo es requerido";
+                return dtoError.error("El email es requerido");
             if (string.IsNullOrWhiteSpace(passwordWrite))
-                return "La contraseña es requerida";
-
-            userEntity EMAIL = await userManager.FindByEmailAsync(emailWrite);
-            if (EMAIL == null)
-                return "Credenciales Invalidas";
-            //if (await userManager.IsEmailConfirmedAsync(EMAIL) == false)
-            //    return "Credenciales Invalidas";
-            if (EMAIL.deleteAt != null)
-                return "Credenciales invalidas";
-            bool result = await userManager.CheckPasswordAsync(EMAIL, passwordWrite);
-            if (!result) return "Credenciales Invalidas";
-            return "Success";
+                return dtoError.error("La contraseña es requerida");
+            userEntity USER_CURRENT = await userManager.FindByEmailAsync(emailWrite);
+            if (USER_CURRENT == null)
+                return dtoError.error("Credenciales Invalidas");
+            if (USER_CURRENT.deleteAt != null)
+                return dtoError.error("Credenciales Invalidas");
+            bool result = await userManager.CheckPasswordAsync(USER_CURRENT, passwordWrite);
+            if (!result) dtoError.error("Credenciales Invalidas");
+            return dtoError.success(USER_CURRENT);
         }
 
         private async void button1_Click(object sender, EventArgs e)
         {
             button1.Enabled = false;
             button1.Text = "Cargando...";
-            lb_error.Text=await validationsLogin();
+            dtoError<userEntity> dtoError =await validationsLogin();
             button1.Enabled = true;
             button1.Text = "Iniciar sesion";
 
-            if (lb_error.Text== "Success")
+            if(dtoError.message != null)
             {
-                lb_error.Text = "Logueado";
+                lb_error.Text = dtoError.message;
+                return;
             }
+
+            lb_error.Text = "";
+            localStorageSvc.saveData("user", dtoError.data.Id);
+            productsView productsView = serviceProvider.GetRequiredService<productsView>();
+            productsView.Show();
+            this.Hide();
         }
 
     }

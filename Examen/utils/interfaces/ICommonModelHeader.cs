@@ -13,5 +13,8 @@ namespace project.utils.interfaces
         public DateTime? updateAt { get; set; }
         public userEntity userUpdate { get; set; }
 
+        public string userCreateId { get; set; }
+        public userEntity userCreate { get; set; }
+
     }
 }
